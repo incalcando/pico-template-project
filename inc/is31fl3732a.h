@@ -1,6 +1,7 @@
 #ifndef IS31FL3732A_H
 #define IS31FL3732A_H
 
+#include <stdio.h>
 
 #include <stdint.h>
 #include "pico/stdlib.h"
@@ -24,7 +25,11 @@ uint8_t led_brightness[0x90] = {0};
 
 uint8_t brightness = 0xFF;
 
-set_brightness(uint8_t b){
+
+int pos;
+int pos2;
+
+void set_brightness(uint8_t b){
     brightness = b;
 }
 
@@ -91,6 +96,7 @@ void is31fl3732a_init() {
 
     for (uint8_t led = 0x24; led <= 0xB3; led++) {
         i2c_write_register(led, 0xFF);  // Set all LEDs to full brightness (PWM = 255)
+        i2c_write_register(led, 0x00);  // Set all LEDs to lowest brightness (PWM = 0)
     }
 
     i2c_write_register(0xFD, 0x0B);  // Select Page 9 (Global Current Control)
@@ -112,7 +118,13 @@ void send_all_brightness(){
 };
 
 
-void single_led_in_matrix(int pos, int start, int end){
+void single_led(int pos){
+    if(pos < 0x90)
+            led_brightness[pos] = brightness;
+}
+
+
+void single_led_in_section(int pos, int start, int end){
     // static uint8_t reg = 0x00;
     if(pos >= start && pos <= end)
     {
@@ -126,67 +138,41 @@ void single_led_in_matrix(int pos, int start, int end){
     
 }
 
-void set_led_state(int led_pos, bool state, uint8_t matrix) {
-    // uint8_t reg = 0x00;
-    // uint8_t data;
-    // static uint8_t pData = 0;
-    // data = led_pos / 57;
-    // uint8_t bit_pos = data % 8;
-    // uint8_t byte_pos = data / 8;
+int overspill = 0;
+int startOfLEDS;
+int amountOfLEDS;
+int rangeLED = 0;
 
-    // if(pData != data){
-    //     pData = data;
 
-    //     // Calculate the register address
-    //     reg = 0x00 + (byte_pos * 2);
-    //     // reg = reg > 0x11 ? reg - 0x12 : reg;
-    //     reg += matrix;
+void control_led_range_ring_buffer(int start, int length, int first, int last) {
+    int rangeLED = last - first + 1;
+    int end = start + length;
 
-    //     // Write the register address to the device
-    //     i2c_write_blocking(I2C_PORT, IS31FL3732A_ADDR, &reg, 1, true);
-
-    //     // Read the current value of the register
-    //     // uint8_t current_value = 0; //led_states[byte_pos];
-    //     // i2c_read_blocking(I2C_PORT, IS31FL3732A_ADDR, &reg, 1, &current_value, 1, false);
-    //     // i2c_read_blocking(I2C_PORT, IS31FL3732A_ADDR, &current_value, 1, false);
-
-    //     // Set or clear the bit
-    //     if (state) {
-    //         led_states[byte_pos] |= (1 << bit_pos);
-    //     } else {
-    //         led_states[byte_pos] &= ~(1 << bit_pos);
-    //     }
-
-    //     // Write the updated value back to the register
-    //     i2c_write_register(reg, led_states[byte_pos]);
-    // }
+    for (int i = 0; i < rangeLED; i++) {
+        int pos = (start + i) % rangeLED;
+        if (i < length) {
+            led_brightness[first + pos] = brightness;
+        } else {
+            led_brightness[first + pos] = 0x00;
+        }
+    }
 }
 
-void range_led_in_matrix(int pos, int length, int matrix) {
-    // static uint8_t reg = 0x00;
-    // static int data;
-    // static uint8_t b = 0;
-    // static uint8_t pReg;
+void fill_led_range(int start, int length, int first, int last) {
+    
+    ////// This is the new code
+    overspill = 0;
+    startOfLEDS = start;
+    amountOfLEDS = length;
 
-    // for (int i = 0; i < length; i++) {
-    //     data = (pos + i) / 8;
-    //     b |= 1 << ((pos + i) % 8);
-    //     reg = 0x00 + (data / 8) * 2;
-    //     reg += matrix;
-    //     i2c_write_register(reg, b);
-    //     if (pReg != reg)
-    //         i2c_write_register(pReg, 0x00);
-    //     pReg = reg;
-    // }
+    rangeLED = last - first + 1;
+    startOfLEDS = first + ((startOfLEDS * rangeLED) / MAX_12BIT);
+    amountOfLEDS = (amountOfLEDS * rangeLED) / MAX_12BIT;
+
+    control_led_range_ring_buffer(startOfLEDS, amountOfLEDS, first, last);
+
 }
 
-void set_led_pwm(uint8_t led, uint8_t pwm) {
-    // // Set the PWM value for the specified LED
-    // int led_mult = (led / 8);
-    // int led_matrix = led_mult % 2;
-    // if(led < 0xB3)
-    //     i2c_write_register(0x24 + led_matrix_hex[led], pwm);
-}
 
 float calc_360degreePotPosition(uint16_t adc1, uint16_t adc2)
 {
@@ -199,58 +185,54 @@ float calc_360degreePotPosition(uint16_t adc1, uint16_t adc2)
     return position;
 }
 
+// void control_led_range(int start, int end, int brightness){
+//     // for(int i = start; i < end; i++){
+//     //     led_brightness[i] = brightness;
+//     // }
+
+//     int overspill = 0;
+//     int startOfLEDS = (calc_360degreePotPosition(adc_0, adc_1));
+//     int amountOfLEDS = (calc_360degreePotPosition(adc_2, adc_3));
+
+//     if(startOfLEDS + amountOfLEDS > MAX_12BIT)
+//         overspill = (startOfLEDS + amountOfLEDS) - MAX_12BIT;
+//     for (int i = 0; i < overspill; i++)
+//         set_led_state(i, true, 0);
+//     for (int i = overspill; i < startOfLEDS; i++)
+//         set_led_state(i, false, 0);
+//     for (int i = startOfLEDS; i < startOfLEDS+amountOfLEDS; i++)
+//         if (i < MAX_12BIT) set_led_state(i, true, 0);
+//     for (int i = startOfLEDS+amountOfLEDS; i < MAX_12BIT; i++)
+//         if (i < MAX_12BIT) set_led_state(i, false, 0);
+
+//     for(int i = 0; i < MAX_12BIT; i++){
+//         if (i > calc_360degreePotPosition(adc_0, adc_1 && i < calc_360degreePotPosition(adc_2, adc_3)))
+//             set_led_state(i, true, 0);
+//         else
+//             set_led_state(i, false, 0);
+//     }
+// }
+
+uint8_t led_brighness_pulse(){
+    static int br = 0;
+    static int dir = 2;
+    br += dir;
+    if(br > 255) {dir = -2; br = 255;}
+    else if (br < 0) {dir = 1; br = 0;}
+    return br;
+}
+
 void process_is31fl3732a()
 {
+    static int frame = 0;
+    if(frame > 5){
+        // set_brightness(led_brighness_pulse());
+        set_brightness(0xFF);
+        send_all_brightness();
+        frame = 0;
+    }
+    frame++;
 
-    // calc_360degreePotPosition(adc_0, adc_1);
-    // single_led_in_matrix(calc_360degreePotPosition(adc_0, adc_1), 0);
-    // single_led_in_matrix(calc_360degreePotPosition(adc_2, adc_3), 1);
-
-    // set_led_state(calc_360degreePotPosition(adc_0, adc_1), true, 0);
-    // set_led_state(calc_360degreePotPosition(adc_2, adc_3), false, 0);
-    // static int frame = 0;
-    // static uint8_t pwm = 0;
-    // static int8_t direction = 1;
-    // if(frame > 5){
-    //     set_led_pwm(72, pwm += direction);
-    //     for(int i = 8; i < 15; i++){
-    //         set_led_pwm(i, pwm);
-    //     }
-    //     for(int i = 80; i < 95; i++){
-    //         set_led_pwm(i, 255 - pwm);
-    //     }
-    //     set_led_pwm(0, 255 - pwm);
-    //     if(pwm == 255){
-    //         direction = -1;
-    //     } else if (pwm == 0){
-    //         direction = 1;
-    //     }
-    //     frame = 0;
-    // }
-    // frame++;
-    
-
-    // int overspill = 0;
-    // int startOfLEDS = (calc_360degreePotPosition(adc_0, adc_1));
-    // int amountOfLEDS = (calc_360degreePotPosition(adc_2, adc_3));
-
-    // if(startOfLEDS + amountOfLEDS > MAX_12BIT)
-    //     overspill = (startOfLEDS + amountOfLEDS) - MAX_12BIT;
-    // for (int i = 0; i < overspill; i++)
-    //     set_led_state(i, true, 0);
-    // for (int i = overspill; i < startOfLEDS; i++)
-    //     set_led_state(i, false, 0);
-    // for (int i = startOfLEDS; i < startOfLEDS+amountOfLEDS; i++)
-    //     if (i < MAX_12BIT) set_led_state(i, true, 0);
-    // for (int i = startOfLEDS+amountOfLEDS; i < MAX_12BIT; i++)
-    //     if (i < MAX_12BIT) set_led_state(i, false, 0);
-
-    // for(int i = 0; i < MAX_12BIT; i++){
-    //     if (i > calc_360degreePotPosition(adc_0, adc_1 && i < calc_360degreePotPosition(adc_2, adc_3)))
-    //         set_led_state(i, true, 0);
-    //     else
-    //         set_led_state(i, false, 0);
-    // }
 }
 
 #endif // IS31FL3732A_H
