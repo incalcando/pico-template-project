@@ -138,15 +138,9 @@ void single_led_in_section(int pos, int start, int end){
     
 }
 
-int overspill = 0;
-int startOfLEDS;
-int amountOfLEDS;
-int rangeLED = 0;
-
 
 void control_led_range_ring_buffer(int start, int length, int first, int last) {
     int rangeLED = last - first + 1;
-    int end = start + length;
 
     for (int i = 0; i < rangeLED; i++) {
         int pos = (start + i) % rangeLED;
@@ -158,18 +152,19 @@ void control_led_range_ring_buffer(int start, int length, int first, int last) {
     }
 }
 
-void fill_led_range(int start, int length, int first, int last) {
+void fill_led_range(float start, float length, float first, float last) {
     
     ////// This is the new code
-    overspill = 0;
-    startOfLEDS = start;
-    amountOfLEDS = length;
+    float overspill = 0;
+    float rangeLED = 0;
+    float startOfLEDS = start;
+    float amountOfLEDS = length;
 
     rangeLED = last - first + 1;
     startOfLEDS = first + ((startOfLEDS * rangeLED) / MAX_12BIT);
     amountOfLEDS = (amountOfLEDS * rangeLED) / MAX_12BIT;
 
-    control_led_range_ring_buffer(startOfLEDS, amountOfLEDS, first, last);
+    control_led_range_ring_buffer((int)startOfLEDS, (int)amountOfLEDS, (int)first, (int)last);
 
 }
 

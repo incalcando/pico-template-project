@@ -15,6 +15,7 @@
 
 #include "shiftRegister.h"
 #include "is31fl3732a.h"
+#include "ws2812.h"
 
 // SPI port 0
 #define SPI_PORT spi0
@@ -165,25 +166,6 @@ void dac70508_write_channel_first_dac(uint8_t channel, uint16_t value) {
     gpio_put(PIN_CS, 1); // Pull CS high to end communication
 }
 
-static inline void put_pixel(uint32_t pixel_grb)
-{
-    pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
-}
-
-static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b)
-{
-    return ((uint32_t)(r) << 8) |
-           ((uint32_t)(g) << 16) |
-           (uint32_t)(b);
-}
-
-static inline uint32_t urgbw_u32(uint8_t r, uint8_t g, uint8_t b, uint8_t w)
-{
-    return ((uint32_t)(r) << 8) |
-           ((uint32_t)(g) << 16) |
-           ((uint32_t)(w) << 24) |
-           (uint32_t)(b);
-}
 
 void pattern_snakes(uint len, uint t)
 {
@@ -302,7 +284,7 @@ void setup_hardware_timer() {
 int main()
 {
     stdio_init_all();
-    tusb_init();
+    // tusb_init();
     dac70508_init();
     shift_register_init();
     adc_init();
@@ -378,93 +360,21 @@ int main()
         // single_led_in_section((pos / 57) + 72, 72, 144);
         // single_led_in_section((pos2 / 57), 0, 72);
 
-        fill_led_range(pos, pos2, 0, 36);
-        fill_led_range(pos, pos2, 37, 72);
+        fill_led_range(pos, pos2, 0, 72);
+        // fill_led_range(pos, pos2, 72, 143);
 
         // set_brightness(pos2 / 16);
         // single_led(pos / 57);
 
         process_is31fl3732a();
 
-        // if (!gpio_get(18))// && BTN_Flag0 == 0)
-        // {
+        uint8_t brightness1 = pos >> 4;
+        uint8_t brightness2 = (4095 - pos) >> 4;
+        uint8_t brightness3 = pos2 >> 4;
+        uint8_t brightness4 = (4095 - pos2) >> 4;
 
-            // BTN_Flag0 = 1;
-            // channel++;
-            // if (channel > 3)
-            // {
-            //     channel = 0;
-            // }
-            // adc_select_input(0);
-            // brightness = (adc_read() >> 4);
-            // adc_select_input(1);
-            // uint8_t brightness2 = (adc_read() >> 4);
-            // put_pixel(urgb_u32(0, brightness, brightness));
-            // put_pixel(urgb_u32(brightness2, 0, brightness2));
-            
-            // adc_select_input(2);
-            // uint8_t brightness3 = (adc_read() >> 4);
-            
-            // for (int i = 0; i < 16; i++)
-            // {
-            //     put_pixel(urgb_u32(brightness3, brightness3, 0));
-            // }
-            // for (int i = 0; i < 16; i++)
-            // {
-            //     put_pixel(urgb_u32(0, brightness3, brightness3));
-            // }
+        process_ws2812(brightness1, brightness3);
 
-            // adc_select_input(3);
-            // uint8_t brightness4 = (adc_read() >> 4);
-
-            // for (int i = 0; i < 16; i++)
-            // {
-            //     put_pixel(urgb_u32(brightness4, 0, brightness4));
-            // }
-
-            // for (int i = 0; i < 16; i++)
-            // {
-            //     put_pixel(urgb_u32(brightness4, brightness4, brightness4));
-            // }
-            // sleep_ms(1);
-
-            // alarm_callback_t
-        // }
-        // if (gpio_get(18))// && BTN_Flag0 == 1)
-        // {
-        //     BTN_Flag0 = 0;
-        //     put_pixel(urgb_u32(0, 0, 0));
-        //     put_pixel(urgb_u32(0, 0, 0));
-        //     for (int i = 0; i < 64; i++)
-        //     {
-        //         put_pixel(urgb_u32(0, 0, 0));
-        //     }
-        // }
-
-        // put_pixel(rand() % 16 ? 0 : 0xffffffff);
-        // put_pixel(rand() % 16 ? 0 : 0xffffffff);
-        // sleep_ms(10);
-
-        // int pat = rand() % count_of(pattern_table);
-        // int dir = (rand() >> 30) & 1 ? 1 : -1;
-        // puts(pattern_table[pat].name);
-        // puts(dir == 1 ? "(forward)" : "(backward)");
-        // for (int i = 0; i < 1000; ++i)
-        // {
-        //     pattern_table[pat].pat(NUM_PIXELS, t);
-        //     sleep_ms(10);
-        //     t += dir;
-        // }
-
-        // dac70508_set_all_channels(0x8000);
-        // dac70508_write_channel_first_dac(0, 0x2356);
-        // send_shift_register_data(0b10000000, 0b10000001 ); // First byte for second dac ()
-        // static int setBit = 0;
-        // flip_bit(&SR_data, setBit);
-        // setBit++;
-        // if(setBit > 16) setBit = 0;
-        // send_shift_register_data16(SR_data);
-        // sleep_ms(125); // Wait for 1 second
-
+  
     }
 }
